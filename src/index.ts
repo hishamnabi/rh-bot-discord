@@ -123,11 +123,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       // Name (Text)
       const nameInput = new TextInputBuilder()
         .setCustomId(FIELD_NAME)
-        .setLabel("Name (First + Last Initial)")
-        .setPlaceholder("Ahmed K")
+        .setLabel("Full Name (First + Last)")
+        .setPlaceholder("Name")
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
-        .setMaxLength(20);
+        .setMaxLength(32);
 
       // Position (Text - user types G, F, or C)
       const positionInput = new TextInputBuilder()
@@ -196,7 +196,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const nickname = buildNickname(name, position, city);
       if (!nickname) {
         await interaction.reply({
-          content: "That nickname is too long (Discord max is 32 chars). Shorten your name/city and try again.",
+          content: "That nickname is too long (Discord max is 32 chars). Try using just your last initial (e.g., 'Ahmed K') and try again.",
           flags: MessageFlags.Ephemeral,
         });
         return;
