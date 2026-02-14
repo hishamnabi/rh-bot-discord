@@ -24,6 +24,9 @@ const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL_ID!;
 const VERIFIED_ROLE_ID = (process.env.VERIFIED_ROLE_ID || "").trim();
 const VERIFIED_ROLE_NAME = (process.env.VERIFIED_ROLE_NAME || "Verified Player").trim();
 
+// Role to assign to new members when they join
+const NEW_MEMBER_ROLE_ID = "1472350187178557562";
+
 if (!TOKEN || !CLIENT_ID || !GUILD_ID || !VERIFY_CHANNEL_ID) {
   throw new Error("Missing required env vars. Check DISCORD_TOKEN, DISCORD_CLIENT_ID, GUILD_ID, VERIFY_CHANNEL_ID.");
 }
@@ -52,6 +55,10 @@ async function registerCommands() {
       .setName("setupverify")
       .setDescription("Post (and pin) the verification message with button in the verify channel.")
       .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild),
+    new SlashCommandBuilder()
+      .setName("assignunverified")
+      .setDescription("Assign the Unverified role to all members who have no roles.")
+      .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild),
   ].map((c) => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -66,6 +73,24 @@ const client = new Client({
 client.once(Events.ClientReady, async () => {
   console.log(`✅ Logged in as ${client.user?.tag}`);
   await registerCommands();
+});
+
+// Assign role to new members when they join
+client.on(Events.GuildMemberAdd, async (member) => {
+  try {
+    if (member.guild.id !== GUILD_ID) return;
+
+    const role = member.guild.roles.cache.get(NEW_MEMBER_ROLE_ID);
+    if (!role) {
+      console.error(`Could not find role with ID ${NEW_MEMBER_ROLE_ID}`);
+      return;
+    }
+
+    await member.roles.add(role, "Auto-assigned on join");
+    console.log(`✅ Assigned role to new member: ${member.user.tag}`);
+  } catch (err) {
+    console.error(`Failed to assign role to ${member.user.tag}:`, err);
+  }
 });
 
 // ---- Interactions ----
@@ -104,6 +129,47 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
 
       await interaction.reply({ content: "✅ Verification message posted (and pinned if permitted).", flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    // /assignunverified (assigns Unverified role to members with no roles)
+    if (interaction.isChatInputCommand() && interaction.commandName === "assignunverified") {
+      if (!interaction.inGuild()) return;
+
+      const guild = interaction.guild!;
+      if (guild.id !== GUILD_ID) {
+        await interaction.reply({ content: "This command is only configured for the specified guild.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      const role = guild.roles.cache.get(NEW_MEMBER_ROLE_ID);
+      if (!role) {
+        await interaction.reply({ content: `Could not find the Unverified role (ID: ${NEW_MEMBER_ROLE_ID}).`, flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+      // Fetch all members
+      const members = await guild.members.fetch();
+      let assignedCount = 0;
+
+      for (const [, member] of members) {
+        // Skip bots
+        if (member.user.bot) continue;
+
+        // Check if member has only @everyone role (size === 1 means only @everyone)
+        if (member.roles.cache.size === 1) {
+          try {
+            await member.roles.add(role, "Bulk assignment via /assignunverified");
+            assignedCount++;
+          } catch (err) {
+            console.error(`Failed to assign role to ${member.user.tag}:`, err);
+          }
+        }
+      }
+
+      await interaction.editReply({ content: `✅ Assigned the **${role.name}** role to ${assignedCount} member(s) who had no roles.` });
       return;
     }
 
