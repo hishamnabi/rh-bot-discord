@@ -43,6 +43,11 @@ function normalizeSpaces(s: string) {
   return s.trim().replace(/\s+/g, " ");
 }
 
+// Capitalize first letter of each word (e.g., "john smith" -> "John Smith")
+function capitalizeWords(s: string) {
+  return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // Nickname builder + Discord limit
 function buildNickname(name: string, position: string, city: string) {
   const nick = `${name} | ${position} | ${city}`;
@@ -237,8 +242,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
-      const name = normalizeSpaces(interaction.fields.getTextInputValue(FIELD_NAME));
-      const city = normalizeSpaces(interaction.fields.getTextInputValue(FIELD_CITY));
+      const name = capitalizeWords(normalizeSpaces(interaction.fields.getTextInputValue(FIELD_NAME)));
+      const city = capitalizeWords(normalizeSpaces(interaction.fields.getTextInputValue(FIELD_CITY)));
       const positionRaw = normalizeSpaces(interaction.fields.getTextInputValue(FIELD_POSITION));
       const position = positionRaw.toUpperCase();
 
