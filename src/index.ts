@@ -322,8 +322,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
-      // Assign role
+      // Assign verified role
       await member.roles.add(role, "Verified Player");
+
+      // Remove unverified role if they have it
+      const unverifiedRole = guild.roles.cache.get(NEW_MEMBER_ROLE_ID);
+      if (unverifiedRole && member.roles.cache.has(NEW_MEMBER_ROLE_ID)) {
+        await member.roles.remove(unverifiedRole, "Verified Player");
+      }
 
       await interaction.reply({
         content: `✅ Verified! Your nickname is now **${nickname}** and you have the **${role.name}** role.`,
