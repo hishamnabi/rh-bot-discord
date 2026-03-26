@@ -104,7 +104,7 @@ client.once(Events.ClientReady, async () => {
 // Assign role to new members when they join
 client.on(Events.GuildMemberAdd, async (member) => {
   try {
-    if (member.guild.id !== GUILD_ID) return;
+    if (!GUILD_IDS.includes(member.guild.id)) return;
 
     const role = member.guild.roles.cache.get(NEW_MEMBER_ROLE_ID);
     if (!role) {
@@ -127,7 +127,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!interaction.inGuild()) return;
 
       const guild = interaction.guild!;
-      if (guild.id !== GUILD_ID) {
+      if (!GUILD_IDS.includes(guild.id)) {
         await interaction.reply({ content: "This command is only configured for the specified guild.", flags: MessageFlags.Ephemeral });
         return;
       }
@@ -163,7 +163,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!interaction.inGuild()) return;
 
       const guild = interaction.guild!;
-      if (guild.id !== GUILD_ID) {
+      if (!GUILD_IDS.includes(guild.id)) {
         await interaction.reply({ content: "This command is only configured for the specified guild.", flags: MessageFlags.Ephemeral });
         return;
       }
@@ -204,7 +204,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!interaction.inGuild()) return;
 
       const guild = interaction.guild!;
-      if (guild.id !== GUILD_ID) {
+      if (!GUILD_IDS.includes(guild.id)) {
         await interaction.reply({ content: "This command is only configured for the specified guild.", flags: MessageFlags.Ephemeral });
         return;
       }
