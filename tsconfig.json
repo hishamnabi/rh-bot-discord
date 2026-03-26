@@ -37,5 +37,6 @@
     "moduleDetection": "force",
     "esModuleInterop": true,
     "skipLibCheck": true,
-  }
+  },
+  "exclude": ["web", "dist"]
 }
