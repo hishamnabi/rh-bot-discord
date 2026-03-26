@@ -33,6 +33,7 @@ const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL_ID!;
 
 const VERIFIED_ROLE_ID = (process.env.VERIFIED_ROLE_ID || "").trim();
 const VERIFIED_ROLE_NAME = (process.env.VERIFIED_ROLE_NAME || "Verified Player").trim();
+const APPROVED_ROLE_ID = process.env.APPROVED_ROLE_ID!;
 
 // Comma-separated list of guild IDs to register commands in. Falls back to GUILD_ID if not set.
 const GUILD_IDS = (process.env.GUILD_IDS || GUILD_ID).split(",").map((id) => id.trim());
@@ -103,9 +104,62 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
+async function assignApprovedRole(discordUserId: string) {
+  const guild = await client.guilds.fetch(GUILD_ID);
+  const member = await guild.members.fetch(discordUserId);
+  const role = guild.roles.cache.get(APPROVED_ROLE_ID);
+  if (!role) {
+    console.error(`Approved role not found: ${APPROVED_ROLE_ID}`);
+    return;
+  }
+  await member.roles.add(role, "Approved via web app");
+  console.log(`✅ Assigned approved role to ${member.user.tag}`);
+}
+
+function startApprovalListener() {
+  const playersRef = db.collection("players");
+
+  // On startup, backfill any approved players that haven't had their role assigned yet
+  playersRef
+    .where("status", "==", "approved")
+    .where("roleAssigned", "==", false)
+    .get()
+    .then(async (snapshot) => {
+      for (const doc of snapshot.docs) {
+        const { discordUserId } = doc.data();
+        try {
+          await assignApprovedRole(discordUserId);
+          await doc.ref.update({ roleAssigned: true });
+        } catch (err) {
+          console.error(`Failed to backfill role for ${discordUserId}:`, err);
+        }
+      }
+    })
+    .catch((err) => console.error("Backfill query failed:", err));
+
+  // Watch for new approvals in real time
+  playersRef.onSnapshot((snapshot) => {
+    snapshot.docChanges().forEach(async (change) => {
+      if (change.type !== "modified") return;
+      const data = change.doc.data();
+      if (data.status !== "approved" || data.roleAssigned) return;
+
+      try {
+        await assignApprovedRole(data.discordUserId);
+        await change.doc.ref.update({ roleAssigned: true });
+      } catch (err) {
+        console.error(`Failed to assign role for ${data.discordUserId}:`, err);
+      }
+    });
+  });
+
+  console.log("✅ Listening for player approvals.");
+}
+
 client.once(Events.ClientReady, async () => {
   console.log(`✅ Logged in as ${client.user?.tag}`);
   await registerCommands();
+  startApprovalListener();
 });
 
 // Assign role to new members when they join
@@ -314,6 +368,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         referredBy: referredBy || null,
         city,
         status: "review",
+        roleAssigned: false,
         appliedAt: admin.firestore.FieldValue.serverTimestamp(),
         discordUserId: interaction.user.id,
         discordUsername: interaction.user.username,

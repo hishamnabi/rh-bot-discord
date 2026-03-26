@@ -6,3 +6,4 @@ dist/
 rh-ssh-key.key
 *serviceAccount*.json
 *service-account*.json
+web/.env
