@@ -27,6 +27,9 @@ const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL_ID!;
 const VERIFIED_ROLE_ID = (process.env.VERIFIED_ROLE_ID || "").trim();
 const VERIFIED_ROLE_NAME = (process.env.VERIFIED_ROLE_NAME || "Verified Player").trim();
 
+// Comma-separated list of guild IDs to register commands in. Falls back to GUILD_ID if not set.
+const GUILD_IDS = (process.env.GUILD_IDS || GUILD_ID).split(",").map((id) => id.trim());
+
 // Role to assign to new members when they join
 const NEW_MEMBER_ROLE_ID = "1472350187178557562";
 
@@ -83,8 +86,10 @@ async function registerCommands() {
   ].map((c) => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
-  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
-  console.log("✅ Slash commands registered.");
+  for (const guildId of GUILD_IDS) {
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: commands });
+    console.log(`✅ Slash commands registered for guild ${guildId}.`);
+  }
 }
 
 const client = new Client({
