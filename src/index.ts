@@ -6,12 +6,15 @@ import {
   Client,
   Events,
   GatewayIntentBits,
+  LabelBuilder,
   MessageFlags,
   ModalBuilder,
   PermissionsBitField,
   REST,
   Routes,
   SlashCommandBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
@@ -31,12 +34,21 @@ if (!TOKEN || !CLIENT_ID || !GUILD_ID || !VERIFY_CHANNEL_ID) {
   throw new Error("Missing required env vars. Check DISCORD_TOKEN, DISCORD_CLIENT_ID, GUILD_ID, VERIFY_CHANNEL_ID.");
 }
 
-// Custom IDs
+// Custom IDs — Verify
 const BTN_VERIFY = "verify:btn";
 const MODAL_VERIFY = "verify:modal";
 const FIELD_NAME = "verify:name";
 const FIELD_CITY = "verify:city";
 const FIELD_POSITION = "verify:position";
+
+// Custom IDs — Apply
+const BTN_APPLY = "apply:btn";
+const MODAL_APPLY = "apply:modal";
+const APPLY_NAME = "apply:name";
+const APPLY_POSITION = "apply:position";
+const APPLY_PHONE = "apply:phone";
+const APPLY_REFERRED_BY = "apply:referred_by";
+const APPLY_CITY = "apply:city";
 
 // Basic normalization
 function normalizeSpaces(s: string) {
@@ -63,6 +75,10 @@ async function registerCommands() {
     new SlashCommandBuilder()
       .setName("assignunverified")
       .setDescription("Assign the Unverified role to all members who have no roles.")
+      .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild),
+    new SlashCommandBuilder()
+      .setName("setupapply")
+      .setDescription("Post the application message with Apply button in the current channel.")
       .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild),
   ].map((c) => c.toJSON());
 
@@ -175,6 +191,116 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
 
       await interaction.editReply({ content: `✅ Assigned the **${role.name}** role to ${assignedCount} member(s) who had no roles.` });
+      return;
+    }
+
+    // /setupapply (posts an Apply button in the current channel)
+    if (interaction.isChatInputCommand() && interaction.commandName === "setupapply") {
+      if (!interaction.inGuild()) return;
+
+      const guild = interaction.guild!;
+      if (guild.id !== GUILD_ID) {
+        await interaction.reply({ content: "This command is only configured for the specified guild.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      const channel = interaction.channel;
+      if (!channel || !channel.isTextBased()) {
+        await interaction.reply({ content: "This channel is not text-based.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(BTN_APPLY).setLabel("Apply").setStyle(ButtonStyle.Success)
+      );
+
+      await channel.send({
+        content: "**Ramadan Hoops Player Application**\nInterested in joining? Click the button below to apply.",
+        components: [row],
+      });
+
+      await interaction.reply({ content: "✅ Application message posted.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    // Apply button -> show application modal
+    if (interaction.isButton() && interaction.customId === BTN_APPLY) {
+      const modal = new ModalBuilder()
+        .setCustomId(MODAL_APPLY)
+        .setTitle("Ramadan Hoops Application");
+
+      modal.addLabelComponents(
+        new LabelBuilder()
+          .setLabel("What is your full name?")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(APPLY_NAME)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMaxLength(64)
+          ),
+        new LabelBuilder()
+          .setLabel("What position do you primarily play?")
+          .setStringSelectMenuComponent(
+            new StringSelectMenuBuilder()
+              .setCustomId(APPLY_POSITION)
+              .setPlaceholder("Select a position")
+              .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel("Guard (G)").setValue("G"),
+                new StringSelectMenuOptionBuilder().setLabel("Forward (F)").setValue("F"),
+                new StringSelectMenuOptionBuilder().setLabel("Center (C)").setValue("C"),
+              )
+          ),
+        new LabelBuilder()
+          .setLabel("What is your phone number?")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(APPLY_PHONE)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMaxLength(20)
+          ),
+        new LabelBuilder()
+          .setLabel("Who referred you to Ramadan Hoops?")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(APPLY_REFERRED_BY)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(false)
+              .setMaxLength(64)
+          ),
+        new LabelBuilder()
+          .setLabel("Which Ramadan Hoops run are you applying for?")
+          .setStringSelectMenuComponent(
+            new StringSelectMenuBuilder()
+              .setCustomId(APPLY_CITY)
+              .setPlaceholder("Select a city")
+              .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel("Dallas").setValue("Dallas"),
+                new StringSelectMenuOptionBuilder().setLabel("Houston").setValue("Houston"),
+                new StringSelectMenuOptionBuilder().setLabel("Seattle").setValue("Seattle"),
+              )
+          ),
+      );
+
+      await interaction.showModal(modal);
+      return;
+    }
+
+    // Apply modal submit
+    if (interaction.isModalSubmit() && interaction.customId === MODAL_APPLY) {
+      const name = capitalizeWords(normalizeSpaces(interaction.fields.getTextInputValue(APPLY_NAME)));
+      const position = (interaction.fields.getField(APPLY_POSITION) as { values: readonly string[] }).values[0];
+      const phone = normalizeSpaces(interaction.fields.getTextInputValue(APPLY_PHONE));
+      const referredBy = normalizeSpaces(interaction.fields.getTextInputValue(APPLY_REFERRED_BY));
+      const city = (interaction.fields.getField(APPLY_CITY) as { values: readonly string[] }).values[0];
+
+      console.log(`[Apply] ${name} | ${position} | ${phone} | referred by: ${referredBy || "N/A"} | city: ${city}`);
+
+      await interaction.reply({
+        content: `✅ Thanks, **${name}**! Your application for the **${city}** run has been received. We'll be in touch!`,
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
