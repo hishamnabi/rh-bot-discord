@@ -31,6 +31,8 @@ export default function App() {
   });
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [cityFilter, setCityFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
 
   async function fetchPlayers() {
     setLoading(true);
@@ -60,7 +62,11 @@ export default function App() {
 
   useEffect(() => { fetchPlayers(); }, []);
 
-  const current = players[activeTab];
+  const CITIES = ["Dallas", "Houston", "Seattle"];
+  const current = players[activeTab].filter((p) =>
+    (cityFilter === "all" || p.city === cityFilter) &&
+    (search === "" || p.name.toLowerCase().includes(search.toLowerCase()))
+  );
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -70,29 +76,60 @@ export default function App() {
           Ramadan Hoops — Applications
         </h1>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-gray-200 mb-6">
-          {TABS.map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-                activeTab === tab.value
-                  ? "border-gray-900 text-gray-900"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {tab.label}
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                activeTab === tab.value
-                  ? "bg-gray-900 text-white"
-                  : "bg-gray-200 text-gray-600"
-              }`}>
-                {players[tab.value].length}
-              </span>
-            </button>
-          ))}
+        {/* Tabs + Filter */}
+        <div className="flex items-end justify-between border-b border-gray-200 mb-6">
+          <div className="flex gap-1">
+            {TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setActiveTab(tab.value)}
+                className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
+                  activeTab === tab.value
+                    ? "border-gray-900 text-gray-900"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {tab.label}
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  activeTab === tab.value
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-200 text-gray-600"
+                }`}>
+                  {players[tab.value].length}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {!loading && (
+            <div className="flex items-center gap-2 pb-3">
+              <label className="text-sm text-gray-500">City</label>
+              <select
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 cursor-pointer"
+              >
+                <option value="all">All Cities</option>
+                {CITIES.map((city) => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
+
+        {/* Search */}
+        {!loading && (
+          <div className="mb-5">
+            <input
+              type="text"
+              placeholder="Search by name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 w-64 focus:outline-none focus:ring-2 focus:ring-gray-300"
+            />
+          </div>
+        )}
 
         {/* Content */}
         {loading && (
@@ -100,7 +137,9 @@ export default function App() {
         )}
 
         {!loading && current.length === 0 && (
-          <p className="text-gray-500 mt-4">No {activeTab} applications.</p>
+          <p className="text-gray-500 mt-4">
+            No {activeTab} applications{cityFilter !== "all" ? ` in ${cityFilter}` : ""}.
+          </p>
         )}
 
         {!loading && current.length > 0 && (

@@ -54,12 +54,27 @@ const FIELD_POSITION = "verify:position";
 
 // Custom IDs — Apply
 const BTN_APPLY = "apply:btn";
-const MODAL_APPLY = "apply:modal";
-const APPLY_NAME = "apply:name";
-const APPLY_POSITION = "apply:position";
+const MODAL_APPLY_1 = "apply:modal1";
+const MODAL_APPLY_2 = "apply:modal2";
+const APPLY_FIRST_NAME = "apply:first_name";
+const APPLY_LAST_NAME = "apply:last_name";
 const APPLY_PHONE = "apply:phone";
-const APPLY_REFERRED_BY = "apply:referred_by";
+const APPLY_POSITION = "apply:position";
 const APPLY_CITY = "apply:city";
+const APPLY_AGE = "apply:age";
+const APPLY_HEIGHT = "apply:height";
+const APPLY_REFERRED_BY = "apply:referred_by";
+const BTN_APPLY_CONTINUE = "apply:continue";
+
+// Temporary storage for multi-step modal data
+interface PendingApplication {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  position: string;
+  city: string;
+}
+const pendingApplications = new Map<string, PendingApplication>();
 
 // Basic normalization
 function normalizeSpaces(s: string) {
@@ -289,21 +304,39 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    // Apply button -> show application modal
+    // Apply button -> show modal 1
     if (interaction.isButton() && interaction.customId === BTN_APPLY) {
       const modal = new ModalBuilder()
-        .setCustomId(MODAL_APPLY)
-        .setTitle("Ramadan Hoops Application");
+        .setCustomId(MODAL_APPLY_1)
+        .setTitle("Ramadan Hoops Application (1/2)");
 
       modal.addLabelComponents(
         new LabelBuilder()
-          .setLabel("What is your full name?")
+          .setLabel("What is your first name?")
           .setTextInputComponent(
             new TextInputBuilder()
-              .setCustomId(APPLY_NAME)
+              .setCustomId(APPLY_FIRST_NAME)
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
-              .setMaxLength(64)
+              .setMaxLength(32)
+          ),
+        new LabelBuilder()
+          .setLabel("What is your last name?")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(APPLY_LAST_NAME)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMaxLength(32)
+          ),
+        new LabelBuilder()
+          .setLabel("What is your phone number?")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(APPLY_PHONE)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMaxLength(20)
           ),
         new LabelBuilder()
           .setLabel("What position do you primarily play?")
@@ -316,24 +349,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 new StringSelectMenuOptionBuilder().setLabel("Forward (F)").setValue("F"),
                 new StringSelectMenuOptionBuilder().setLabel("Center (C)").setValue("C"),
               )
-          ),
-        new LabelBuilder()
-          .setLabel("What is your phone number?")
-          .setTextInputComponent(
-            new TextInputBuilder()
-              .setCustomId(APPLY_PHONE)
-              .setStyle(TextInputStyle.Short)
-              .setRequired(true)
-              .setMaxLength(20)
-          ),
-        new LabelBuilder()
-          .setLabel("Who referred you to Ramadan Hoops?")
-          .setTextInputComponent(
-            new TextInputBuilder()
-              .setCustomId(APPLY_REFERRED_BY)
-              .setStyle(TextInputStyle.Short)
-              .setRequired(false)
-              .setMaxLength(64)
           ),
         new LabelBuilder()
           .setLabel("Which Ramadan Hoops run are you applying for?")
@@ -353,20 +368,103 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    // Apply modal submit
-    if (interaction.isModalSubmit() && interaction.customId === MODAL_APPLY) {
-      const name = capitalizeWords(normalizeSpaces(interaction.fields.getTextInputValue(APPLY_NAME)));
-      const position = (interaction.fields.getField(APPLY_POSITION) as { values: readonly string[] }).values[0];
+    // Apply modal 1 submit -> store data, show modal 2
+    if (interaction.isModalSubmit() && interaction.customId === MODAL_APPLY_1) {
+      const firstName = capitalizeWords(normalizeSpaces(interaction.fields.getTextInputValue(APPLY_FIRST_NAME)));
+      const lastName = capitalizeWords(normalizeSpaces(interaction.fields.getTextInputValue(APPLY_LAST_NAME)));
       const phone = normalizeSpaces(interaction.fields.getTextInputValue(APPLY_PHONE));
+      const position = (interaction.fields.getField(APPLY_POSITION) as { values: readonly string[] }).values[0] ?? "";
+      const city = (interaction.fields.getField(APPLY_CITY) as { values: readonly string[] }).values[0] ?? "";
+
+      pendingApplications.set(interaction.user.id, { firstName, lastName, phone, position, city });
+
+      const continueRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(BTN_APPLY_CONTINUE)
+          .setLabel("Continue →")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      await interaction.reply({
+        content: "Almost done! Click below to complete your application.",
+        components: [continueRow],
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    // Continue button -> show modal 2
+    if (interaction.isButton() && interaction.customId === BTN_APPLY_CONTINUE) {
+      if (!pendingApplications.has(interaction.user.id)) {
+        await interaction.reply({ content: "Your session expired. Please start the application again.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      const modal2 = new ModalBuilder()
+        .setCustomId(MODAL_APPLY_2)
+        .setTitle("Ramadan Hoops Application (2/2)");
+
+      modal2.addLabelComponents(
+        new LabelBuilder()
+          .setLabel("How old are you?")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(APPLY_AGE)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMaxLength(3)
+          ),
+        new LabelBuilder()
+          .setLabel("What is your height?")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(APPLY_HEIGHT)
+              .setStyle(TextInputStyle.Short)
+              .setPlaceholder("e.g. 6'2\"")
+              .setRequired(true)
+              .setMaxLength(10)
+          ),
+        new LabelBuilder()
+          .setLabel("Who referred you to Ramadan Hoops?")
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(APPLY_REFERRED_BY)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(false)
+              .setMaxLength(64)
+          ),
+      );
+
+      await interaction.showModal(modal2);
+      return;
+    }
+
+    // Apply modal 2 submit -> combine with stored data, save to Firestore
+    if (interaction.isModalSubmit() && interaction.customId === MODAL_APPLY_2) {
+      const partOne = pendingApplications.get(interaction.user.id);
+      if (!partOne) {
+        await interaction.reply({ content: "Your session expired. Please start the application again.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      const age = normalizeSpaces(interaction.fields.getTextInputValue(APPLY_AGE));
+      const height = normalizeSpaces(interaction.fields.getTextInputValue(APPLY_HEIGHT));
       const referredBy = normalizeSpaces(interaction.fields.getTextInputValue(APPLY_REFERRED_BY));
-      const city = (interaction.fields.getField(APPLY_CITY) as { values: readonly string[] }).values[0];
+
+      pendingApplications.delete(interaction.user.id);
+
+      const { firstName, lastName, phone, position, city } = partOne;
 
       await db.collection("players").add({
-        name,
-        position,
+        firstName,
+        lastName,
+        name: `${firstName} ${lastName}`,
         phone,
-        referredBy: referredBy || null,
+        position,
         city,
+        age,
+        height,
+        referredBy: referredBy || null,
         status: "review",
         roleAssigned: false,
         appliedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -374,10 +472,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         discordUsername: interaction.user.username,
       });
 
-      console.log(`[Apply] ${name} | ${position} | ${phone} | referred by: ${referredBy || "N/A"} | city: ${city}`);
+      console.log(`[Apply] ${firstName} ${lastName} | ${position} | ${city}`);
 
       await interaction.reply({
-        content: `✅ Thanks, **${name}**! Your application for the **${city}** run has been received. We'll be in touch!`,
+        content: `✅ Thanks, **${firstName}**! Your application for the **${city}** run has been received. We'll be in touch!`,
         flags: MessageFlags.Ephemeral,
       });
       return;
