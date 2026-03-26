@@ -1,4 +1,6 @@
 import "dotenv/config";
+import admin from "firebase-admin";
+import { readFileSync } from "fs";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -18,6 +20,11 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
+
+// Firebase
+const serviceAccount = JSON.parse(readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH!, "utf-8"));
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+const db = admin.firestore();
 
 const TOKEN = process.env.DISCORD_TOKEN!;
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID!;
@@ -299,6 +306,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const phone = normalizeSpaces(interaction.fields.getTextInputValue(APPLY_PHONE));
       const referredBy = normalizeSpaces(interaction.fields.getTextInputValue(APPLY_REFERRED_BY));
       const city = (interaction.fields.getField(APPLY_CITY) as { values: readonly string[] }).values[0];
+
+      await db.collection("players").add({
+        name,
+        position,
+        phone,
+        referredBy: referredBy || null,
+        city,
+        status: "review",
+        appliedAt: admin.firestore.FieldValue.serverTimestamp(),
+        discordUserId: interaction.user.id,
+        discordUsername: interaction.user.username,
+      });
 
       console.log(`[Apply] ${name} | ${position} | ${phone} | referred by: ${referredBy || "N/A"} | city: ${city}`);
 

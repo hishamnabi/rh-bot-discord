@@ -4,3 +4,5 @@ dist/
 *.log
 .DS_Store
 rh-ssh-key.key
+*serviceAccount*.json
+*service-account*.json
